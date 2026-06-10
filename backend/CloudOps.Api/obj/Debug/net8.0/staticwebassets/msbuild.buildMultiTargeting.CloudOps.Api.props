@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\CloudOps.Api.props" />
-</Project>
