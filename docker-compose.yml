@@ -26,11 +26,28 @@
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=cloudops_db;Username=postgres;Password=postgres
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__UserName: cloudops
+      RabbitMQ__Password: cloudops
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: cloudops-rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: cloudops
+      RABBITMQ_DEFAULT_PASS: cloudops
 
 volumes:
   cloudops_postgres_data:

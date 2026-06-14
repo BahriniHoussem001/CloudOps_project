@@ -1,6 +1,8 @@
 ﻿using CloudOps.Api.Common.Responses;
+using CloudOps.Api.Infrastructure.Messaging;
 using CloudOps.Api.Infrastructure.Persistence;
 using CloudOps.Api.Modules.Requests.Dtos;
+using CloudOps.Api.Modules.Requests.Events;
 using CloudOps.Api.Modules.Requests.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -82,16 +84,21 @@ public static class RequestEndpoints
         .WithTags("Requests")
         .WithOpenApi();
 
-        app.MapPost("/api/requests", async (CreateServiceRequestRequest request, AppDbContext dbContext) =>
+        app.MapPost("/api/requests", async (
+            CreateServiceRequestRequest request,
+            AppDbContext dbContext,
+            IMessagePublisher messagePublisher) =>
         {
-            var clientExists = await dbContext.Users.AnyAsync(user => user.Id == request.ClientId);
+            var clientExists = await dbContext.Users
+                .AnyAsync(user => user.Id == request.ClientId);
 
             if (!clientExists)
             {
                 return Results.BadRequest(ApiResponse<object>.Fail("Client not found"));
             }
 
-            var serviceExists = await dbContext.Services.AnyAsync(service => service.Id == request.ServiceId);
+            var serviceExists = await dbContext.Services
+                .AnyAsync(service => service.Id == request.ServiceId);
 
             if (!serviceExists)
             {
@@ -112,6 +119,21 @@ public static class RequestEndpoints
             dbContext.ServiceRequests.Add(serviceRequest);
             await dbContext.SaveChangesAsync();
 
+            var requestCreatedEvent = new RequestCreatedEvent
+            {
+                RequestId = serviceRequest.Id,
+                ClientId = serviceRequest.ClientId,
+                ServiceId = serviceRequest.ServiceId,
+                Title = serviceRequest.Title,
+                Status = serviceRequest.Status,
+                CreatedAt = serviceRequest.CreatedAt
+            };
+
+            await messagePublisher.PublishAsync(
+                "request-created-queue",
+                requestCreatedEvent
+            );
+
             return Results.Created(
                 $"/api/requests/{serviceRequest.Id}",
                 ApiResponse<object>.Ok(
@@ -124,7 +146,10 @@ public static class RequestEndpoints
         .WithTags("Requests")
         .WithOpenApi();
 
-        app.MapPut("/api/requests/{id:guid}", async (Guid id, UpdateServiceRequestRequest request, AppDbContext dbContext) =>
+        app.MapPut("/api/requests/{id:guid}", async (
+            Guid id,
+            UpdateServiceRequestRequest request,
+            AppDbContext dbContext) =>
         {
             var serviceRequest = await dbContext.ServiceRequests.FindAsync(id);
 
