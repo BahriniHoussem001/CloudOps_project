@@ -58,9 +58,12 @@ public static class NotificationEndpoints
         .WithTags("Notifications")
         .WithOpenApi();
 
-        app.MapPost("/api/notifications", async (CreateNotificationRequest request, AppDbContext dbContext) =>
+        app.MapPost("/api/notifications", async (
+            CreateNotificationRequest request,
+            AppDbContext dbContext) =>
         {
-            var userExists = await dbContext.Users.AnyAsync(user => user.Id == request.UserId);
+            var userExists = await dbContext.Users
+                .AnyAsync(user => user.Id == request.UserId);
 
             if (!userExists)
             {
@@ -100,7 +103,10 @@ public static class NotificationEndpoints
         .WithTags("Notifications")
         .WithOpenApi();
 
-        app.MapPut("/api/notifications/{id:guid}", async (Guid id, UpdateNotificationRequest request, AppDbContext dbContext) =>
+        app.MapPut("/api/notifications/{id:guid}", async (
+            Guid id,
+            UpdateNotificationRequest request,
+            AppDbContext dbContext) =>
         {
             var notification = await dbContext.Notifications.FindAsync(id);
 
@@ -131,8 +137,100 @@ public static class NotificationEndpoints
         .WithName("UpdateNotification")
         .WithTags("Notifications")
         .WithOpenApi();
+        app.MapGet("/api/users/{userId:guid}/notifications", async (
+    Guid userId,
+    AppDbContext dbContext) =>
+        {
+            var userExists = await dbContext.Users
+                .AnyAsync(user => user.Id == userId);
 
-        app.MapDelete("/api/notifications/{id:guid}", async (Guid id, AppDbContext dbContext) =>
+            if (!userExists)
+            {
+                return Results.NotFound(ApiResponse<object>.Fail("User not found"));
+            }
+
+            var notifications = await dbContext.Notifications
+                .Where(notification => notification.UserId == userId)
+                .OrderByDescending(notification => notification.CreatedAt)
+                .Select(notification => new NotificationDto
+                {
+                    Id = notification.Id,
+                    Title = notification.Title,
+                    Message = notification.Message,
+                    IsRead = notification.IsRead
+                })
+                .ToListAsync();
+
+            return Results.Ok(ApiResponse<List<NotificationDto>>.Ok(
+                notifications,
+                "User notifications retrieved successfully"
+            ));
+        })
+        .WithName("GetUserNotifications")
+        .WithTags("Notifications")
+        .WithOpenApi();
+
+        app.MapGet("/api/users/{userId:guid}/notifications/unread-count", async (
+           Guid userId,
+           AppDbContext dbContext) =>
+        {
+            var userExists = await dbContext.Users
+                .AnyAsync(user => user.Id == userId);
+
+            if (!userExists)
+            {
+                return Results.NotFound(ApiResponse<object>.Fail("User not found"));
+            }
+
+            var unreadCount = await dbContext.Notifications
+                .CountAsync(notification =>
+                    notification.UserId == userId &&
+                    notification.IsRead == false
+                );
+
+            return Results.Ok(ApiResponse<object>.Ok(
+                new { UnreadCount = unreadCount },
+                "Unread notifications count retrieved successfully"
+            ));
+        })
+        .WithName("GetUnreadNotificationsCount")
+        .WithTags("Notifications")
+        .WithOpenApi();
+        app.MapPut("/api/notifications/{id:guid}/mark-as-read", async (
+            Guid id,
+            AppDbContext dbContext) =>
+        {
+            var notification = await dbContext.Notifications.FindAsync(id);
+
+            if (notification is null)
+            {
+                return Results.NotFound(ApiResponse<object>.Fail("Notification not found"));
+            }
+
+            notification.IsRead = true;
+
+            await dbContext.SaveChangesAsync();
+
+            var notificationDto = new NotificationDto
+            {
+                Id = notification.Id,
+                Title = notification.Title,
+                Message = notification.Message,
+                IsRead = notification.IsRead
+            };
+
+            return Results.Ok(ApiResponse<NotificationDto>.Ok(
+                notificationDto,
+                "Notification marked as read successfully"
+            ));
+        })
+        .WithName("MarkNotificationAsRead")
+        .WithTags("Notifications")
+        .WithOpenApi();
+
+        app.MapDelete("/api/notifications/{id:guid}", async (
+            Guid id,
+            AppDbContext dbContext) =>
         {
             var notification = await dbContext.Notifications.FindAsync(id);
 

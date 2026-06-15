@@ -1,6 +1,7 @@
 using CloudOps.Api.Common.Responses;
 using CloudOps.Api.Infrastructure.Messaging;
 using CloudOps.Api.Infrastructure.Messaging.RabbitMQ;
+using CloudOps.Api.Infrastructure.Messaging.RabbitMQ.Consumers;
 using CloudOps.Api.Infrastructure.Persistence;
 using CloudOps.Api.Modules.Notifications.Endpoints;
 using CloudOps.Api.Modules.Requests.Endpoints;
@@ -31,7 +32,8 @@ builder.Services.AddSingleton(sp =>
 });
 
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
-
+builder.Services.AddHostedService<RequestCreatedConsumer>();
+    
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
