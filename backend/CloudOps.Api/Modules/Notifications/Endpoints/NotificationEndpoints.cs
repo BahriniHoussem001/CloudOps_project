@@ -196,6 +196,43 @@ public static class NotificationEndpoints
         .WithName("GetUnreadNotificationsCount")
         .WithTags("Notifications")
         .WithOpenApi();
+        app.MapPut("/api/users/{userId:guid}/notifications/mark-all-as-read", async (
+            Guid userId,
+            AppDbContext dbContext) =>
+        {
+            var userExists = await dbContext.Users
+                .AnyAsync(user => user.Id == userId);
+
+            if (!userExists)
+            {
+                return Results.NotFound(ApiResponse<object>.Fail("User not found"));
+            }
+
+            var unreadNotifications = await dbContext.Notifications
+                .Where(notification =>
+                    notification.UserId == userId &&
+                    notification.IsRead == false
+                )
+                .ToListAsync();
+
+            foreach (var notification in unreadNotifications)
+            {
+                notification.IsRead = true;
+            }
+
+            await dbContext.SaveChangesAsync();
+
+            return Results.Ok(ApiResponse<object>.Ok(
+                new
+                {
+                    UpdatedCount = unreadNotifications.Count
+                },
+                "All user notifications marked as read successfully"
+            ));
+        })
+        .WithName("MarkAllUserNotificationsAsRead")
+        .WithTags("Notifications")
+        .WithOpenApi();
         app.MapPut("/api/notifications/{id:guid}/mark-as-read", async (
             Guid id,
             AppDbContext dbContext) =>

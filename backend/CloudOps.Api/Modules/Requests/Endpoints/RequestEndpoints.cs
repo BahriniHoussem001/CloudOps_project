@@ -87,13 +87,21 @@ public static class RequestEndpoints
         app.MapPost("/api/requests", async (
             CreateServiceRequestRequest request,
             AppDbContext dbContext,
-            IMessagePublisher messagePublisher) =>
+            IMessagePublisher messagePublisher,
+            ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("RequestEndpoints");
+
             var clientExists = await dbContext.Users
                 .AnyAsync(user => user.Id == request.ClientId);
 
             if (!clientExists)
             {
+                logger.LogWarning(
+                    "Failed to create service request because client {ClientId} was not found",
+                    request.ClientId
+                );
+
                 return Results.BadRequest(ApiResponse<object>.Fail("Client not found"));
             }
 
@@ -102,6 +110,11 @@ public static class RequestEndpoints
 
             if (!serviceExists)
             {
+                logger.LogWarning(
+                    "Failed to create service request because service {ServiceId} was not found",
+                    request.ServiceId
+                );
+
                 return Results.BadRequest(ApiResponse<object>.Fail("Service not found"));
             }
 
@@ -119,6 +132,13 @@ public static class RequestEndpoints
             dbContext.ServiceRequests.Add(serviceRequest);
             await dbContext.SaveChangesAsync();
 
+            logger.LogInformation(
+                "Service request {RequestId} created for client {ClientId} and service {ServiceId}",
+                serviceRequest.Id,
+                serviceRequest.ClientId,
+                serviceRequest.ServiceId
+            );
+
             var requestCreatedEvent = new RequestCreatedEvent
             {
                 RequestId = serviceRequest.Id,
@@ -132,6 +152,11 @@ public static class RequestEndpoints
             await messagePublisher.PublishAsync(
                 "request-created-queue",
                 requestCreatedEvent
+            );
+
+            logger.LogInformation(
+                "RequestCreatedEvent published to RabbitMQ for request {RequestId}",
+                serviceRequest.Id
             );
 
             return Results.Created(
@@ -149,12 +174,20 @@ public static class RequestEndpoints
         app.MapPut("/api/requests/{id:guid}", async (
             Guid id,
             UpdateServiceRequestRequest request,
-            AppDbContext dbContext) =>
+            AppDbContext dbContext,
+            ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("RequestEndpoints");
+
             var serviceRequest = await dbContext.ServiceRequests.FindAsync(id);
 
             if (serviceRequest is null)
             {
+                logger.LogWarning(
+                    "Failed to update service request {RequestId} because it was not found",
+                    id
+                );
+
                 return Results.NotFound(ApiResponse<object>.Fail("Service request not found"));
             }
 
@@ -163,6 +196,12 @@ public static class RequestEndpoints
             serviceRequest.Status = request.Status;
 
             await dbContext.SaveChangesAsync();
+
+            logger.LogInformation(
+                "Service request {RequestId} updated successfully with status {Status}",
+                serviceRequest.Id,
+                serviceRequest.Status
+            );
 
             return Results.Ok(ApiResponse<object>.Ok(
                 new { serviceRequest.Id },
@@ -173,17 +212,32 @@ public static class RequestEndpoints
         .WithTags("Requests")
         .WithOpenApi();
 
-        app.MapDelete("/api/requests/{id:guid}", async (Guid id, AppDbContext dbContext) =>
+        app.MapDelete("/api/requests/{id:guid}", async (
+            Guid id,
+            AppDbContext dbContext,
+            ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("RequestEndpoints");
+
             var serviceRequest = await dbContext.ServiceRequests.FindAsync(id);
 
             if (serviceRequest is null)
             {
+                logger.LogWarning(
+                    "Failed to delete service request {RequestId} because it was not found",
+                    id
+                );
+
                 return Results.NotFound(ApiResponse<object>.Fail("Service request not found"));
             }
 
             dbContext.ServiceRequests.Remove(serviceRequest);
             await dbContext.SaveChangesAsync();
+
+            logger.LogInformation(
+                "Service request {RequestId} deleted successfully",
+                id
+            );
 
             return Results.Ok(ApiResponse<object>.Ok(
                 null,

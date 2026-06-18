@@ -17,27 +17,6 @@
       timeout: 5s
       retries: 5
 
-  api:
-    build:
-      context: .
-      dockerfile: backend/CloudOps.Api/Dockerfile
-    container_name: cloudops-api
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_started
-    ports:
-      - "8080:8080"
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=cloudops_db;Username=postgres;Password=postgres
-      RabbitMQ__HostName: rabbitmq
-      RabbitMQ__Port: 5672
-      RabbitMQ__UserName: cloudops
-      RabbitMQ__Password: cloudops
-
   rabbitmq:
     image: rabbitmq:3-management
     container_name: cloudops-rabbitmq
@@ -48,6 +27,35 @@
     environment:
       RABBITMQ_DEFAULT_USER: cloudops
       RABBITMQ_DEFAULT_PASS: cloudops
+    volumes:
+      - cloudops_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/CloudOps.Api/Dockerfile
+    container_name: cloudops-api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=cloudops_db;Username=postgres;Password=postgres
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__UserName: cloudops
+      RabbitMQ__Password: cloudops
 
 volumes:
   cloudops_postgres_data:
+  cloudops_rabbitmq_data:

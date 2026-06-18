@@ -1,16 +1,21 @@
-﻿using RabbitMQ.Client;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
+using CloudOps.Api.Infrastructure.Messaging;
+using RabbitMQ.Client;
 
 namespace CloudOps.Api.Infrastructure.Messaging.RabbitMQ
 {
     public class RabbitMqPublisher : IMessagePublisher
     {
         private readonly RabbitMqSettings _settings;
+        private readonly ILogger<RabbitMqPublisher> _logger;
 
-        public RabbitMqPublisher(RabbitMqSettings settings)
+        public RabbitMqPublisher(
+            RabbitMqSettings settings,
+            ILogger<RabbitMqPublisher> logger)
         {
             _settings = settings;
+            _logger = logger;
         }
 
         public async Task PublishAsync<T>(string queueName, T message)
@@ -41,6 +46,11 @@ namespace CloudOps.Api.Infrastructure.Messaging.RabbitMQ
                 exchange: string.Empty,
                 routingKey: queueName,
                 body: body
+            );
+
+            _logger.LogInformation(
+                "Message published to RabbitMQ queue {QueueName}",
+                queueName
             );
         }
     }
