@@ -56,6 +56,17 @@
       RabbitMQ__UserName: cloudops
       RabbitMQ__Password: cloudops
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cloudops-frontend
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
 volumes:
   cloudops_postgres_data:
   cloudops_rabbitmq_data:
